@@ -87,3 +87,17 @@ export interface VerifyResult {
   frequencies?: Record<string, number>;
   ratio?: [number, number] | null;
 }
+
+export interface PaletteConfig {
+  starDensity: number;
+  twinkleSpeed: number;
+  lightPollution: number;
+  hueShift: number;
+}
+
+export const DEFAULT_PALETTE: PaletteConfig = {
+  starDensity: 400,
+  twinkleSpeed: 1,
+  lightPollution: 1,
+  hueShift: 0
+};

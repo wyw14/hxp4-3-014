@@ -3,21 +3,33 @@ import type {
   AnchorPoint,
   Connection,
   ScreenPoint,
-  CurvePoint
+  CurvePoint,
+  PaletteConfig
 } from './types';
-import { rotatePoint } from './utils';
+import { rotatePoint, shiftHue } from './utils';
 
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
   private canvas: HTMLCanvasElement;
   private width: number = 0;
   private height: number = 0;
+  private palette: PaletteConfig;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Failed to get canvas context');
     this.ctx = ctx;
+    this.palette = {
+      starDensity: 400,
+      twinkleSpeed: 1,
+      lightPollution: 1,
+      hueShift: 0
+    };
+  }
+
+  setPalette(palette: PaletteConfig): void {
+    this.palette = palette;
   }
 
   resize(width: number, height: number): void {
@@ -36,15 +48,27 @@ export class Renderer {
   }
 
   private clear(): void {
-    this.ctx.fillStyle = '#02030a';
+    const hueShift = this.palette.hueShift;
+
+    const baseBg = hueShift !== 0 ? shiftHue('#02030a', hueShift) : '#02030a';
+    this.ctx.fillStyle = baseBg;
     this.ctx.fillRect(0, 0, this.width, this.height);
 
     const gradient = this.ctx.createRadialGradient(
       this.width / 2, this.height / 2, 0,
       this.width / 2, this.height / 2, Math.max(this.width, this.height) * 0.7
     );
-    gradient.addColorStop(0, 'rgba(10, 15, 40, 0.3)');
-    gradient.addColorStop(1, 'rgba(0, 0, 10, 1)');
+
+    let color1 = 'rgba(10, 15, 40, 0.3)';
+    let color2 = 'rgba(0, 0, 10, 1)';
+    if (hueShift !== 0) {
+      const c1 = shiftHue('#0a0f28', hueShift);
+      const c2 = shiftHue('#00000a', hueShift);
+      color1 = `rgba(${parseInt(c1.slice(1, 3), 16)}, ${parseInt(c1.slice(3, 5), 16)}, ${parseInt(c1.slice(5, 7), 16)}, 0.3)`;
+      color2 = `rgba(${parseInt(c2.slice(1, 3), 16)}, ${parseInt(c2.slice(3, 5), 16)}, ${parseInt(c2.slice(5, 7), 16)}, 1)`;
+    }
+    gradient.addColorStop(0, color1);
+    gradient.addColorStop(1, color2);
     this.ctx.fillStyle = gradient;
     this.ctx.fillRect(0, 0, this.width, this.height);
   }
@@ -55,6 +79,7 @@ export class Renderer {
     time: number
   ): void {
     const center = this.getCenter();
+    const speedMult = this.palette.twinkleSpeed;
 
     for (const star of stars) {
       const rotated = rotatePoint(
@@ -70,7 +95,7 @@ export class Renderer {
         continue;
       }
 
-      const twinkle = Math.sin(time * star.twinkleSpeed + star.twinkleOffset);
+      const twinkle = Math.sin(time * star.twinkleSpeed * speedMult + star.twinkleOffset);
       const brightness = star.baseBrightness * (0.6 + 0.4 * twinkle);
 
       this.ctx.beginPath();
@@ -95,6 +120,41 @@ export class Renderer {
     time: number,
     config: { baseIntensity: number; variability: number; speed: number }
   ): void {
+    const pollutionMult = this.palette.lightPollution;
+    if (pollutionMult <= 0) return;
+    const hueShift = this.palette.hueShift;
+
+    const baseColors = [
+      { r: 100, g: 150, b: 255 },
+      { r: 180, g: 100, b: 255 },
+      { r: 255, g: 150, b: 200 }
+    ];
+    const midColor = { r: 80, g: 100, b: 180 };
+
+    const shiftedColors = hueShift !== 0
+      ? baseColors.map(c => {
+          const hex = `#${c.r.toString(16).padStart(2, '0')}${c.g.toString(16).padStart(2, '0')}${c.b.toString(16).padStart(2, '0')}`;
+          const shifted = shiftHue(hex, hueShift);
+          return {
+            r: parseInt(shifted.slice(1, 3), 16),
+            g: parseInt(shifted.slice(3, 5), 16),
+            b: parseInt(shifted.slice(5, 7), 16)
+          };
+        })
+      : baseColors;
+
+    const shiftedMid = hueShift !== 0
+      ? (() => {
+          const hex = `#${midColor.r.toString(16).padStart(2, '0')}${midColor.g.toString(16).padStart(2, '0')}${midColor.b.toString(16).padStart(2, '0')}`;
+          const shifted = shiftHue(hex, hueShift);
+          return {
+            r: parseInt(shifted.slice(1, 3), 16),
+            g: parseInt(shifted.slice(3, 5), 16),
+            b: parseInt(shifted.slice(5, 7), 16)
+          };
+        })()
+      : midColor;
+
     const layers = 5;
     for (let i = 0; i < layers; i++) {
       const phase = time * config.speed * (0.5 + i * 0.2);
@@ -106,13 +166,14 @@ export class Renderer {
       const cx = this.width * (0.2 + i * 0.18) + offsetX;
       const cy = this.height * (0.3 + (i % 2) * 0.4) + offsetY;
 
-      const intensity = Math.max(0, config.baseIntensity +
-        Math.sin(time * config.speed * 2 + i * 0.8) * config.variability);
+      const intensity = Math.max(0, (config.baseIntensity +
+        Math.sin(time * config.speed * 2 + i * 0.8) * config.variability) * pollutionMult);
 
+      const c = shiftedColors[i % shiftedColors.length];
       const colors = [
-        `rgba(100, 150, 255, ${Math.max(0, intensity * 0.15)})`,
-        `rgba(180, 100, 255, ${Math.max(0, intensity * 0.12)})`,
-        `rgba(255, 150, 200, ${Math.max(0, intensity * 0.1)})`
+        `rgba(${c.r}, ${c.g}, ${c.b}, ${Math.max(0, intensity * 0.15)})`,
+        `rgba(${shiftedColors[(i + 1) % shiftedColors.length].r}, ${shiftedColors[(i + 1) % shiftedColors.length].g}, ${shiftedColors[(i + 1) % shiftedColors.length].b}, ${Math.max(0, intensity * 0.12)})`,
+        `rgba(${shiftedColors[(i + 2) % shiftedColors.length].r}, ${shiftedColors[(i + 2) % shiftedColors.length].g}, ${shiftedColors[(i + 2) % shiftedColors.length].b}, ${Math.max(0, intensity * 0.1)})`
       ];
 
       const glow = this.ctx.createRadialGradient(
@@ -120,7 +181,7 @@ export class Renderer {
         cx, cy, Math.max(1, Math.max(sizeW, sizeH))
       );
       glow.addColorStop(0, colors[i % colors.length]);
-      glow.addColorStop(0.5, `rgba(80, 100, 180, ${Math.max(0, intensity * 0.06)})`);
+      glow.addColorStop(0.5, `rgba(${shiftedMid.r}, ${shiftedMid.g}, ${shiftedMid.b}, ${Math.max(0, intensity * 0.06)})`);
       glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
       this.ctx.fillStyle = glow;
@@ -148,16 +209,39 @@ export class Renderer {
     highlightedId: string | null,
     connectedIds: Set<string>
   ): void {
+    const hueShift = this.palette.hueShift;
+
+    let baseAnchorColor = { r: 200, g: 220, b: 255 };
+    let baseOtherColor = { r: 180, g: 180, b: 200 };
+    let connectedColor = { r: 255, g: 215, b: 100 };
+    let textColor = { r: 160, g: 196, b: 255 };
+
+    if (hueShift !== 0) {
+      const shiftColor = (c: { r: number; g: number; b: number }) => {
+        const hex = `#${c.r.toString(16).padStart(2, '0')}${c.g.toString(16).padStart(2, '0')}${c.b.toString(16).padStart(2, '0')}`;
+        const shifted = shiftHue(hex, hueShift);
+        return {
+          r: parseInt(shifted.slice(1, 3), 16),
+          g: parseInt(shifted.slice(3, 5), 16),
+          b: parseInt(shifted.slice(5, 7), 16)
+        };
+      };
+      baseAnchorColor = shiftColor(baseAnchorColor);
+      baseOtherColor = shiftColor(baseOtherColor);
+      connectedColor = shiftColor(connectedColor);
+      textColor = shiftColor(textColor);
+    }
+
     for (const anchor of anchors) {
       const pos = this.getAnchorScreenPos(anchor, rotation);
-      const twinkle = Math.sin(time * anchor.frequency * 0.8) * 0.3 + 0.7;
+      const twinkle = Math.sin(time * anchor.frequency * 0.8 * this.palette.twinkleSpeed) * 0.3 + 0.7;
       const brightness = (anchor.baseBrightness ?? 0.7) * twinkle;
       const size = (anchor.size ?? 3) * (highlightedId === anchor.id ? 1.8 : 1);
 
       const isAnchor = anchor.id.startsWith('a') || anchor.id.startsWith('b') || anchor.id.startsWith('c');
-      const baseColor = isAnchor ? { r: 200, g: 220, b: 255 } : { r: 180, g: 180, b: 200 };
+      const baseColor = isAnchor ? baseAnchorColor : baseOtherColor;
       const isConnected = connectedIds.has(anchor.id);
-      const connColor = isConnected ? { r: 255, g: 215, b: 100 } : baseColor;
+      const connColor = isConnected ? connectedColor : baseColor;
 
       const glowR = size * 8;
       const glow = this.ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, glowR);
@@ -192,7 +276,7 @@ export class Renderer {
       if (showFreq && isAnchor) {
         this.ctx.font = '11px monospace';
         this.ctx.textAlign = 'center';
-        this.ctx.fillStyle = `rgba(160, 196, 255, ${brightness * 0.9})`;
+        this.ctx.fillStyle = `rgba(${textColor.r}, ${textColor.g}, ${textColor.b}, ${brightness * 0.9})`;
         this.ctx.fillText(`${anchor.frequency.toFixed(1)}Hz`, pos.x, pos.y - size - 10);
       }
     }

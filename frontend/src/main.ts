@@ -1,5 +1,6 @@
 import { Game } from './game';
-import type { LevelData } from './types';
+import type { LevelData, PaletteConfig } from './types';
+import { DEFAULT_PALETTE } from './types';
 import { healthCheck } from './api';
 
 const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
@@ -21,7 +22,116 @@ const btnReset = document.getElementById('btn-reset') as HTMLButtonElement;
 const btnHint = document.getElementById('btn-hint') as HTMLButtonElement;
 const btnNext = document.getElementById('btn-next') as HTMLButtonElement;
 
+const btnPalette = document.getElementById('btn-palette') as HTMLButtonElement;
+const palettePanel = document.getElementById('palette-panel')!;
+const btnClosePalette = document.getElementById('btn-close-palette') as HTMLButtonElement;
+const btnResetPalette = document.getElementById('btn-reset-palette') as HTMLButtonElement;
+
+const sliderDensity = document.getElementById('slider-density') as HTMLInputElement;
+const sliderTwinkle = document.getElementById('slider-twinkle') as HTMLInputElement;
+const sliderPollution = document.getElementById('slider-pollution') as HTMLInputElement;
+const sliderHue = document.getElementById('slider-hue') as HTMLInputElement;
+
+const valDensity = document.getElementById('val-density')!;
+const valTwinkle = document.getElementById('val-twinkle')!;
+const valPollution = document.getElementById('val-pollution')!;
+const valHue = document.getElementById('val-hue')!;
+
+const PALETTE_STORAGE_KEY = 'constellation-palette';
 const MAX_LEVELS = 3;
+
+function loadPaletteFromStorage(): PaletteConfig {
+  try {
+    const stored = localStorage.getItem(PALETTE_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return {
+        starDensity: Number(parsed.starDensity) ?? DEFAULT_PALETTE.starDensity,
+        twinkleSpeed: Number(parsed.twinkleSpeed) ?? DEFAULT_PALETTE.twinkleSpeed,
+        lightPollution: Number(parsed.lightPollution) ?? DEFAULT_PALETTE.lightPollution,
+        hueShift: Number(parsed.hueShift) ?? DEFAULT_PALETTE.hueShift
+      };
+    }
+  } catch {
+    // ignore
+  }
+  return { ...DEFAULT_PALETTE };
+}
+
+function savePaletteToStorage(config: PaletteConfig): void {
+  try {
+    localStorage.setItem(PALETTE_STORAGE_KEY, JSON.stringify(config));
+  } catch {
+    // ignore
+  }
+}
+
+function updatePaletteUI(config: PaletteConfig): void {
+  sliderDensity.value = String(config.starDensity);
+  sliderTwinkle.value = String(config.twinkleSpeed);
+  sliderPollution.value = String(config.lightPollution);
+  sliderHue.value = String(config.hueShift);
+
+  valDensity.textContent = String(config.starDensity);
+  valTwinkle.textContent = `${config.twinkleSpeed.toFixed(1)}x`;
+  valPollution.textContent = `${config.lightPollution.toFixed(1)}x`;
+  valHue.textContent = `${Math.round(config.hueShift * 360)}°`;
+}
+
+function applyPalette(config: PaletteConfig): void {
+  game.setPalette(config);
+  updatePaletteUI(config);
+  savePaletteToStorage(config);
+}
+
+function getPaletteFromUI(): PaletteConfig {
+  return {
+    starDensity: Number(sliderDensity.value),
+    twinkleSpeed: Number(sliderTwinkle.value),
+    lightPollution: Number(sliderPollution.value),
+    hueShift: Number(sliderHue.value)
+  };
+}
+
+btnPalette.addEventListener('click', () => {
+  palettePanel.classList.toggle('show');
+});
+
+btnClosePalette.addEventListener('click', () => {
+  palettePanel.classList.remove('show');
+});
+
+btnResetPalette.addEventListener('click', () => {
+  applyPalette({ ...DEFAULT_PALETTE });
+});
+
+sliderDensity.addEventListener('input', () => {
+  const config = getPaletteFromUI();
+  valDensity.textContent = String(config.starDensity);
+  game.setPalette(config);
+  savePaletteToStorage(config);
+});
+
+sliderTwinkle.addEventListener('input', () => {
+  const config = getPaletteFromUI();
+  valTwinkle.textContent = `${config.twinkleSpeed.toFixed(1)}x`;
+  game.setPalette(config);
+  savePaletteToStorage(config);
+});
+
+sliderPollution.addEventListener('input', () => {
+  const config = getPaletteFromUI();
+  valPollution.textContent = `${config.lightPollution.toFixed(1)}x`;
+  game.setPalette(config);
+  savePaletteToStorage(config);
+});
+
+sliderHue.addEventListener('input', () => {
+  const config = getPaletteFromUI();
+  valHue.textContent = `${Math.round(config.hueShift * 360)}°`;
+  game.setPalette(config);
+  savePaletteToStorage(config);
+});
 
 game.setCallbacks({
   onLevelChange: (level: LevelData) => {
@@ -100,6 +210,9 @@ btnNext.addEventListener('click', async () => {
 async function init(): Promise<void> {
   hintTitleEl.textContent = '加载中...';
   hintTextEl.textContent = '正在连接星界数据库...';
+
+  const savedPalette = loadPaletteFromStorage();
+  applyPalette(savedPalette);
 
   try {
     const backendOk = await healthCheck();

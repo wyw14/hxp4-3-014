@@ -6,7 +6,8 @@ import type {
   ScreenPoint,
   CurvePoint,
   BackgroundStar,
-  LevelData
+  LevelData,
+  PaletteConfig
 } from './types';
 import { Renderer } from './renderer';
 import { getLevel, verifyEdge } from './api';
@@ -30,6 +31,7 @@ export class Game {
   private animationFrameId: number = 0;
   private listeners: Array<() => void> = [];
   private completionTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private palette: PaletteConfig;
 
   private onLevelChange?: (level: LevelData) => void;
   private onProgressChange?: (current: number, total: number) => void;
@@ -38,6 +40,13 @@ export class Game {
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.renderer = new Renderer(canvas);
+
+    this.palette = {
+      starDensity: 400,
+      twinkleSpeed: 1,
+      lightPollution: 1,
+      hueShift: 0
+    };
 
     this.state = {
       currentLevel: 1,
@@ -80,7 +89,36 @@ export class Game {
     const w = window.innerWidth;
     const h = window.innerHeight;
     this.renderer.resize(w, h);
-    this.backgroundStars = generateBackgroundStars(400, w, h);
+    this.backgroundStars = generateBackgroundStars(
+      this.palette.starDensity,
+      w,
+      h,
+      this.palette.hueShift
+    );
+  }
+
+  setPalette(palette: PaletteConfig): void {
+    const needsRegenerate =
+      palette.starDensity !== this.palette.starDensity ||
+      palette.hueShift !== this.palette.hueShift;
+
+    this.palette = { ...palette };
+    this.renderer.setPalette(this.palette);
+
+    if (needsRegenerate) {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      this.backgroundStars = generateBackgroundStars(
+        this.palette.starDensity,
+        w,
+        h,
+        this.palette.hueShift
+      );
+    }
+  }
+
+  getPalette(): PaletteConfig {
+    return { ...this.palette };
   }
 
   private bindEvents(): void {
