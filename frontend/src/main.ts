@@ -1,6 +1,9 @@
 import { Game } from './game';
 import type { LevelData, PaletteConfig } from './types';
-import { DEFAULT_PALETTE } from './types';
+import {
+  DEFAULT_PALETTE,
+  validatePaletteConfig
+} from './types';
 import { healthCheck } from './api';
 
 const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
@@ -42,18 +45,17 @@ const MAX_LEVELS = 3;
 
 function loadPaletteFromStorage(): PaletteConfig {
   try {
-    const stored = localStorage.getItem(PALETTE_STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return {
-        starDensity: Number(parsed.starDensity) ?? DEFAULT_PALETTE.starDensity,
-        twinkleSpeed: Number(parsed.twinkleSpeed) ?? DEFAULT_PALETTE.twinkleSpeed,
-        lightPollution: Number(parsed.lightPollution) ?? DEFAULT_PALETTE.lightPollution,
-        hueShift: Number(parsed.hueShift) ?? DEFAULT_PALETTE.hueShift
-      };
+    const raw = localStorage.getItem(PALETTE_STORAGE_KEY);
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      const result = validatePaletteConfig(parsed);
+      if (result.warnings.length > 0) {
+        console.warn('[星空调色台] 加载配置时发现问题:', result.warnings);
+      }
+      return result.config;
     }
-  } catch {
-    // ignore
+  } catch (err) {
+    console.warn('[星空调色台] 读取本地存储失败，使用默认值:', err);
   }
   return { ...DEFAULT_PALETTE };
 }
@@ -61,8 +63,8 @@ function loadPaletteFromStorage(): PaletteConfig {
 function savePaletteToStorage(config: PaletteConfig): void {
   try {
     localStorage.setItem(PALETTE_STORAGE_KEY, JSON.stringify(config));
-  } catch {
-    // ignore
+  } catch (err) {
+    console.warn('[星空调色台] 保存配置失败:', err);
   }
 }
 
@@ -78,10 +80,15 @@ function updatePaletteUI(config: PaletteConfig): void {
   valHue.textContent = `${Math.round(config.hueShift * 360)}°`;
 }
 
-function applyPalette(config: PaletteConfig): void {
-  game.setPalette(config);
-  updatePaletteUI(config);
-  savePaletteToStorage(config);
+function applyPalette(raw: unknown): PaletteConfig {
+  const result = validatePaletteConfig(raw);
+  if (result.warnings.length > 0) {
+    console.warn('[星空调色台] 应用配置时发现问题:', result.warnings);
+  }
+  game.setPalette(result.config);
+  updatePaletteUI(result.config);
+  savePaletteToStorage(result.config);
+  return result.config;
 }
 
 function getPaletteFromUI(): PaletteConfig {
@@ -106,31 +113,23 @@ btnResetPalette.addEventListener('click', () => {
 });
 
 sliderDensity.addEventListener('input', () => {
-  const config = getPaletteFromUI();
+  const config = applyPalette(getPaletteFromUI());
   valDensity.textContent = String(config.starDensity);
-  game.setPalette(config);
-  savePaletteToStorage(config);
 });
 
 sliderTwinkle.addEventListener('input', () => {
-  const config = getPaletteFromUI();
+  const config = applyPalette(getPaletteFromUI());
   valTwinkle.textContent = `${config.twinkleSpeed.toFixed(1)}x`;
-  game.setPalette(config);
-  savePaletteToStorage(config);
 });
 
 sliderPollution.addEventListener('input', () => {
-  const config = getPaletteFromUI();
+  const config = applyPalette(getPaletteFromUI());
   valPollution.textContent = `${config.lightPollution.toFixed(1)}x`;
-  game.setPalette(config);
-  savePaletteToStorage(config);
 });
 
 sliderHue.addEventListener('input', () => {
-  const config = getPaletteFromUI();
+  const config = applyPalette(getPaletteFromUI());
   valHue.textContent = `${Math.round(config.hueShift * 360)}°`;
-  game.setPalette(config);
-  savePaletteToStorage(config);
 });
 
 game.setCallbacks({

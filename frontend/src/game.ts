@@ -92,15 +92,12 @@ export class Game {
     this.backgroundStars = generateBackgroundStars(
       this.palette.starDensity,
       w,
-      h,
-      this.palette.hueShift
+      h
     );
   }
 
   setPalette(palette: PaletteConfig): void {
-    const needsRegenerate =
-      palette.starDensity !== this.palette.starDensity ||
-      palette.hueShift !== this.palette.hueShift;
+    const needsRegenerate = palette.starDensity !== this.palette.starDensity;
 
     this.palette = { ...palette };
     this.renderer.setPalette(this.palette);
@@ -111,8 +108,7 @@ export class Game {
       this.backgroundStars = generateBackgroundStars(
         this.palette.starDensity,
         w,
-        h,
-        this.palette.hueShift
+        h
       );
     }
   }

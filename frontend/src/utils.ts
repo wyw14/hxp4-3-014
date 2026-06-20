@@ -59,15 +59,12 @@ export function shiftHue(hexColor: string, hueShift: number): string {
   return `#${newRgb.r.toString(16).padStart(2, '0')}${newRgb.g.toString(16).padStart(2, '0')}${newRgb.b.toString(16).padStart(2, '0')}`;
 }
 
-export function generateBackgroundStars(count: number, width: number, height: number, hueShift: number = 0): BackgroundStar[] {
+export function generateBackgroundStars(count: number, width: number, height: number): BackgroundStar[] {
   const stars: BackgroundStar[] = [];
-  const baseColors = [
+  const colors = [
     '#ffffff', '#f8f7ff', '#e8f4ff', '#fff4e6',
     '#ffe8e8', '#e8ffe8', '#f0f0ff'
   ];
-  const colors = hueShift !== 0
-    ? baseColors.map(c => shiftHue(c, hueShift))
-    : baseColors;
 
   for (let i = 0; i < count; i++) {
     const z = Math.random();

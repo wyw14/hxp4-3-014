@@ -80,6 +80,7 @@ export class Renderer {
   ): void {
     const center = this.getCenter();
     const speedMult = this.palette.twinkleSpeed;
+    const hueShift = this.palette.hueShift;
 
     for (const star of stars) {
       const rotated = rotatePoint(
@@ -98,16 +99,18 @@ export class Renderer {
       const twinkle = Math.sin(time * star.twinkleSpeed * speedMult + star.twinkleOffset);
       const brightness = star.baseBrightness * (0.6 + 0.4 * twinkle);
 
+      const renderColor = hueShift !== 0 ? shiftHue(star.color, hueShift) : star.color;
+
       this.ctx.beginPath();
       this.ctx.arc(px, py, star.size, 0, Math.PI * 2);
-      this.ctx.fillStyle = `${star.color}${this.alphaToHex(brightness)}`;
+      this.ctx.fillStyle = `${renderColor}${this.alphaToHex(brightness)}`;
       this.ctx.fill();
 
       if (brightness > 0.5 && star.size > 1) {
         const glowR = star.size * 3;
         const glow = this.ctx.createRadialGradient(px, py, 0, px, py, glowR);
-        glow.addColorStop(0, `${star.color}${this.alphaToHex(brightness * 0.3)}`);
-        glow.addColorStop(1, `${star.color}00`);
+        glow.addColorStop(0, `${renderColor}${this.alphaToHex(brightness * 0.3)}`);
+        glow.addColorStop(1, `${renderColor}00`);
         this.ctx.beginPath();
         this.ctx.arc(px, py, glowR, 0, Math.PI * 2);
         this.ctx.fillStyle = glow;
